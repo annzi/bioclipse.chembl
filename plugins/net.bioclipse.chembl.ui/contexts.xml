@@ -1,0 +1,6 @@
+<contexts>
+   <context id="helpmessage">
+      <description>This is the sample context-sensitive help. </description>
+      <topic href="doc/readFiles.html" label="Input file" />
+   </context>
+</contexts>
