@@ -646,7 +646,52 @@ public class ChEMBLManager implements IBioclipseManager {
 			" }"; 
 
 		IStringMatrix matrix = rdf.sparqlRemote("http://rdf.farmbio.uu.se/chembl/sparql",sparql);
-		System.out.print(matrix.getRowCount());
+		return matrix;
+	}
+	
+	public IStringMatrix MossProtFamilyCompoundsAct(String fam, String actType) 
+	throws BioclipseException{
+
+		String sparql =
+			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#> " +
+			"PREFIX bo: <http://www.blueobelisk.org/chemistryblogs/>"+
+			"SELECT DISTINCT ?smiles ?actval where{ " +
+			"	?target a chembl:Target;" +
+			"       chembl:classL5 ?fam. " + 
+			"	?assay chembl:hasTarget ?target . " +
+			"   ?activity chembl:onAssay ?assay ;" +
+			"	    chembl:type ?actType ; " + 
+			"		chembl:standardValue ?actval;"+
+			"	    chembl:forMolecule ?mol ."+
+			"	?mol bo:smiles ?smiles.  " +
+			" FILTER regex(?fam, " + "\"^" + fam + "$\"" + ", \"i\")."+
+			" FILTER regex(?actType, " + "\"^" + actType + "$\"" + ", \"i\")."+
+			" }"; 
+
+		IStringMatrix matrix = rdf.sparqlRemote("http://rdf.farmbio.uu.se/chembl/sparql",sparql);
+		return matrix;
+	}
+	
+	public IStringMatrix MossProtFamilyCompoundsAct(String fam, String actType, Integer limit) 
+	throws BioclipseException{
+
+		String sparql =
+			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#> " +
+			"PREFIX bo: <http://www.blueobelisk.org/chemistryblogs/>"+
+			"SELECT DISTINCT ?smiles ?actval where{ " +
+			"	?target a chembl:Target;" +
+			"       chembl:classL5 ?fam. " + 
+			"	?assay chembl:hasTarget ?target . " +
+			"   ?activity chembl:onAssay ?assay ;" +
+			"	    chembl:type ?actType ; " + 
+			"		chembl:standardValue ?actval;"+
+			"	    chembl:forMolecule ?mol ."+
+			"	?mol bo:smiles ?smiles.  " +
+			" FILTER regex(?fam, " + "\"^" + fam + "$\"" + ", \"i\")."+
+			" FILTER regex(?actType, " + "\"^" + actType + "$\"" + ", \"i\")."+
+			" } LIMIT" + limit; 
+
+		IStringMatrix matrix = rdf.sparqlRemote("http://rdf.farmbio.uu.se/chembl/sparql",sparql);
 		return matrix;
 	}
 
@@ -684,8 +729,6 @@ public class ChEMBLManager implements IBioclipseManager {
 				}
 			}
 		}
-
 		return list;
-
 	}
 }
