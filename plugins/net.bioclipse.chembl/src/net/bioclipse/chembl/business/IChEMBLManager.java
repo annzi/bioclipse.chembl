@@ -153,7 +153,7 @@ public interface IChEMBLManager extends IBioclipseManager {
 	)
 	public void saveMossFormat(String file, IStringMatrix matrix)
 	throws BioclipseException, IOException;
-	
+
 	@PublishedMethod(
 			params = "String file, StringMatrix matrix, StringMatrix matrix",
 			methodSummary = "Save into a format that Moss accept"
@@ -169,6 +169,19 @@ public interface IChEMBLManager extends IBioclipseManager {
 	public IStringMatrix MossProtFamilyCompounds(String fam, String actType, int limit) 
 	throws BioclipseException;
 
+	@PublishedMethod(
+			params = "String family, String activityType, Integer limit",
+			methodSummary = "Finds compounds and activity value for a protein familit with" +
+			"specified activity and with a limit search."
+	)
+	public IStringMatrix MossProtFamilyCompoundsAct(String fam, String actType, Integer limit) 
+	throws BioclipseException;
+	@PublishedMethod(
+			params = "String family, String activityType",
+			methodSummary = "Perform as MossProtFamily without limit"
+	)
+	public IStringMatrix MossProtFamilyCompoundsAct(String fam, String actType) 
+	throws BioclipseException;
 	@PublishedMethod(
 			params = "String family, String activityType",
 			methodSummary = "Perform as MossProtFamily without limit"
