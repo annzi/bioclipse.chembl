@@ -1,6 +1,24 @@
 <?eclipse version="3.2"?>
 <plugin>
 
+	 <extension
+	      point = "org.eclipse.ui.newWizards">
+		<category
+		   id = "net.bioclipse.chembl.ui"
+		   name="Chembl">
+		</category>
+	 	<wizard
+		   id = "net.bioclipse.chembl.ui.wizard.ChemblWizard"
+		   name = "Chembl Wizard"
+		   project="false"
+		   class="net.bioclipse.chembl.ui.wizard.ChemblWizard"
+		   category="net.bioclipse.chembl.ui"
+		   icon="icons/chembl_new4_ring_normal.png">
+	   	   <description>Work with chEMBL</description>
+		   <selection class="org.eclipse.core.resources.IResource"/>
+		</wizard>
+	    </extension>     
+	    
    <extension
          point="org.eclipse.ui.popupMenus">
       <objectContribution
