@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: ChEMBL Plugin
 Bundle-SymbolicName: net.bioclipse.chembl; singleton:=true
-Bundle-Version: 2.3.0
+Bundle-Version: 2.4.0.RC1
 Bundle-Activator: net.bioclipse.chembl.Activator
 Bundle-Vendor: The Bioclipse Project
 Export-Package: net.bioclipse.chembl, net.bioclipse.chembl.business
