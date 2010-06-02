@@ -31,6 +31,8 @@ The Eclipse Public License accompanies this distribution, and is available at ht
 
    <requires>
       <import feature="net.bioclipse.chemoinformatics_feature" version="2.4.0.RC1" match="greaterOrEqual"/>
+      <import feature="net.bioclipse.chembl_feature" version="2.4.0.RC1"/>
+      <import feature="net.bioclipse.moss_feature" version="2.3.0"/>
    </requires>
 
    <plugin

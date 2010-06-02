@@ -1,0 +1,39 @@
+<?eclipse version="3.2"?>
+<plugin>
+
+	 <extension
+	      point = "org.eclipse.ui.newWizards">
+		<category
+		   id = "net.bioclipse.chembl.moss.ui"
+		   name="MoSS-ChEMBL">
+		</category>
+	 	<wizard
+		   id = "net.bioclipse.chembl.moss.ui.wizard.ChemblMossWizard"
+		   name = "MoSS-ChEMBL Wizard"
+		   project="false"
+		   class="net.bioclipse.chembl.moss.ui.wizard.ChemblMossWizard"
+		   category="net.bioclipse.chembl.moss.ui"
+		   icon="icons/steroid_a.png">
+		   
+	   	   <description>Create a MoSS input file with chEMBL compounds.</description>
+		   <selection class="org.eclipse.core.resources.IResource"/>
+		</wizard>
+	    </extension>      
+	      
+	   <extension
+	         point="org.eclipse.ui.popupMenus">
+	      <objectContribution
+	            objectClass="org.eclipse.core.resources.IProject"
+	            id="net.bioclipse.chembl.moss.ui.contribution1">
+	         <action
+	               label="ChEMBL-MoSS"
+	               icon="icons/logo_chembl.gif"
+	               class="net.bioclipse.chembl.moss.ui.wizard.ChemblMossAction"
+	               menubarPath="additions"
+	               id="net.bioclipse.chembl.business.ChEMBLManager">
+	         </action>
+	      </objectContribution>
+	   </extension>
+
+ 
+</plugin>
