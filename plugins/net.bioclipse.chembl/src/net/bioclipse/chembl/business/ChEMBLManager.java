@@ -1,5 +1,5 @@
-/*******************************************************************************
- * Copyright (c) 2010  Egon Willighagen <egonw@users.sf.net>
+/* Copyright (c) 2010  Egon Willighagen <egonw@users.sf.net>
+ *               2010  Annsofie Andersson <annzi.andersson@gmail.com>
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -7,24 +7,37 @@
  * http://www.eclipse.org/legal/epl-v10.html
  *
  * Contact: http://www.bioclipse.net/
- ******************************************************************************/
+ */
 package net.bioclipse.chembl.business;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.swt.widgets.TableItem;
+import org.jfree.chart.ChartFactory;
+import org.jfree.chart.ChartFrame;
+import org.jfree.chart.JFreeChart;
+import org.jfree.chart.plot.PlotOrientation;
+import org.jfree.data.statistics.HistogramDataset;
+import org.jfree.data.statistics.HistogramType;
+import org.jfree.data.xy.XYSeries;
+import org.jfree.data.xy.XYSeriesCollection;
+
+import net.bioclipse.core.ResourcePathTransformer;
 import net.bioclipse.core.business.BioclipseException;
 import net.bioclipse.managers.business.IBioclipseManager;
 import net.bioclipse.rdf.Activator;
 import net.bioclipse.rdf.business.IJavaRDFManager;
 import net.bioclipse.rdf.model.IStringMatrix;
+import net.bioclipse.rdf.model.StringMatrix;
 
 public class ChEMBLManager implements IBioclipseManager {
 
@@ -79,45 +92,10 @@ public class ChEMBLManager implements IBioclipseManager {
 		return matrix;
 	}
 
-	public Map<String, Double> getQSARData(Integer targetID, String activity)
-	throws BioclipseException {
-		Map<String, Double> results = new HashMap<String, Double>();
-
-		String sparql =
-			"PREFIX bo: <http://www.blueobelisk.org/chemistryblogs/> "+
-			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#> " +
-			"SELECT DISTINCT ?smiles ?val " +
-			"WHERE { " +
-			"  ?act chembl:type \"" + activity + "\"; " +
-			"  chembl:onAssay ?ass; " +
-			"  chembl:standardValue ?val; " +
-			"  chembl:forMolecule ?mol. " +
-			" ?mol bo:smiles ?smiles. " +
-			" ?ass chembl:hasTarget " + 
-			"<http://rdf.farmbio.uu.se/chembl/target/t" + targetID + ">. " +
-			"}";
-
-		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
-		for (int i=0; i<matrix.getRowCount(); i++) {
-			try {
-				String smiles = matrix.get(i, "smiles");
-				if (smiles != null && smiles.length() != 0) {
-					Double value = Double.valueOf(matrix.get(i, "val"));
-					if (value != Double.NaN)
-						results.put(matrix.get(i, "smiles"), value);
-				}
-			} catch (NumberFormatException exception) {
-				results.put(matrix.get(i, "smiles"), Double.NaN);
-			}
-		}
-
-		return results;
-	}
-
 	public List<String> getActivities(Integer targetID)
 	throws BioclipseException {
 		List<String> activities = new ArrayList<String>();
-
+	
 		String sparql =
 			"PREFIX blueobelisk: <http://www.blueobelisk.org/chemistryblogs/> "+
 			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#> " +
@@ -128,12 +106,202 @@ public class ChEMBLManager implements IBioclipseManager {
 			" ?ass chembl:hasTarget " + 
 			"    <http://rdf.farmbio.uu.se/chembl/target/t" + targetID + ">. " +
 			"}";
-
+	
 		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
 		if (matrix.getRowCount() > 0)
 			activities.addAll(matrix.getColumn("act"));
-
+	
 		return activities;
+	}
+
+	public String getChebiId(Integer molID)
+	throws BioclipseException{
+		String sparql=
+			"PREFIX owl: <http://www.w3.org/2002/07/owl#>"+
+			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#>"+
+			"SELECT DISTINCT ?chebi WHERE{"+
+			"<http://rdf.farmbio.uu.se/chembl/molecule/m"+ molID +"> owl:sameAs ?chebi."+
+			"FILTER regex(?chebi ,\"chebi\") }";
+	
+	
+		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
+		String chebi = matrix.getColumn("chebi").get(0).substring(25);
+		return chebi;
+	}
+
+	public List<String> getChebiId(String molIDs)
+	throws BioclipseException{
+	
+		String[] molID = molIDs.split(",");
+		List<String> chebis = new ArrayList<String>();
+	
+		for(int i=0; i < molID.length; i++){
+			String sparql=
+				"PREFIX owl: <http://www.w3.org/2002/07/owl#>"+
+				"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#>"+
+				"SELECT DISTINCT ?chebi WHERE{"+
+				"<http://rdf.farmbio.uu.se/chembl/molecule/m"+ molID[i] +"> owl:sameAs ?chebi."+
+				"FILTER regex(?chebi ,\"chebi\") }";
+			IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
+			String chebi = matrix.getColumn("chebi").get(0).substring(25);
+			chebis.add(chebi);
+		} 
+		return chebis;
+	}
+
+	public IStringMatrix getCompoundInfo(Integer chebiID)
+	throws BioclipseException, IOException{
+	
+		String sparql=
+			"PREFIX dc: <http://purl.org/dc/elements/1.1/>"+    
+			"PREFIX bo: <http://www.blueobelisk.org/chemistryblogs/> "+
+			"PREFIX owl: <http://www.w3.org/2002/07/owl#>"+
+			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#>"+
+			"  SELECT DISTINCT ?act ?asstype ?type ?score ?target ?title WHERE{"+
+			"    ?act chembl:forMolecule <http://rdf.farmbio.uu.se/chembl/molecule/m" + chebiID + "> ." +
+			"    <http://rdf.farmbio.uu.se/chembl/molecule/m" + chebiID + "> bo:smiles ?SMILES." +
+			"    ?act chembl:type ?type;" +
+			"        chembl:onAssay ?ass." +
+			"    ?ass chembl:hasAssayType ?asstype;" +
+			"          chembl:hasTarget ?target;" +
+			"          chembl:hasConfScore ?score." +
+			"    ?target dc:title ?title." +
+			"}";
+	
+		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
+		cutter(matrix);
+	
+		return matrix;
+	}
+
+	public List<IStringMatrix> getCompoundInfo(String chebiIDs)
+	throws BioclipseException, IOException{
+	
+		List<IStringMatrix> matrices = new ArrayList<IStringMatrix>();
+		String[] chebiID = chebiIDs.split(",");
+		for(int i = 0; i<chebiID.length; i++){
+			String sparql=
+	
+				"PREFIX dc: <http://purl.org/dc/elements/1.1/>"+    
+				"PREFIX bo: <http://www.blueobelisk.org/chemistryblogs/> "+
+				"PREFIX owl: <http://www.w3.org/2002/07/owl#>"+
+				"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#>"+
+	
+				"SELECT DISTINCT ?act ?asstype ?type ?score ?target ?title WHERE{"+
+				"  ?act chembl:forMolecule <http://rdf.farmbio.uu.se/chembl/molecule/m" + chebiID[i] + "> ." +
+				"  <http://rdf.farmbio.uu.se/chembl/molecule/m" + chebiID[i] + "> bo:smiles ?SMILES." +
+				"  ?act chembl:type ?type;" +
+				"      chembl:onAssay ?ass." +
+				"  ?ass chembl:hasAssayType ?asstype;" +
+				"        chembl:hasTarget ?target;" +
+				"        chembl:hasConfScore ?score." +
+				"  ?target dc:title ?title." +
+				"}";
+	
+			IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
+			cutter(matrix);
+			matrices.add(matrix);
+		}
+		return matrices;
+	}
+
+	public IStringMatrix getCompoundInfoWithKeyword(String keyword)
+	throws BioclipseException{
+	
+		String sparql=
+			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#> " +
+			"PREFIX dc: <http://purl.org/dc/elements/1.1/>"+
+			"SELECT DISTINCT ?target ?description  WHERE {" +
+			"  ?target a chembl:Target." +
+			"  ?target chembl:hasDescription ?description ." +
+			"   FILTER regex(?description , " + "\"" + keyword + "\" , \"i\") ." +
+			"}";
+	
+		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
+		cutter(matrix);
+		return matrix;
+	}
+
+	public IStringMatrix getCompoundInfoWithSmiles(String smiles)
+	throws BioclipseException{
+		smiles = smiles.replaceAll("\\(","\\\\\\\\(");
+		smiles =smiles.replaceAll("\\)","\\\\\\\\)");
+		smiles =smiles.replaceAll("\\[","\\\\\\\\[");
+		smiles =smiles.replaceAll("\\]","\\\\\\\\]");
+		smiles =smiles.replaceAll("\\+","\\\\\\\\+");
+		smiles =smiles.replaceAll("\\.","\\\\\\\\.");
+		smiles =smiles.replaceAll("\\*","\\\\\\\\*");
+		smiles =smiles.replaceAll("\\/","\\\\\\\\/");
+		//		smiles =smiles.replaceAll("\\\\","\\\\\\\\\\");
+	
+		String sparql =
+			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#> " +
+			"PREFIX dc: <http://purl.org/dc/elements/1.1/>"+
+			"PREFIX bo: <http://www.blueobelisk.org/chemistryblogs/> "+
+			"PREFIX owl: <http://www.w3.org/2002/07/owl#>" +
+			"PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>"+
+			" SELECT ?chebi ?title WHERE {" +
+			"    ?mol a chembl:Compound ." +
+			"    ?mol bo:smiles ?smiles ."+
+			"    ?mol owl:sameAs ?chebi ." +
+			" FILTER regex(?smiles, \"^"+ smiles + "$\") ."+
+			" FILTER regex(?chebi , \"chebi\") ." +
+			" OPTIONAL {?mol dc:title ?title} ."+
+			"}";
+		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
+		cutter(matrix);
+		return matrix;
+	}
+
+	public IStringMatrix getPCM(String actType, String classL6, String classL3)
+	throws BioclipseException{
+	
+		String sparql =
+			"PREFIX bo: <http://www.blueobelisk.org/chemistryblogs/> "+
+			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#>"+
+			" SELECT DISTINCT ?target ?pubmed ?smiles ?l3 ?l4 ?l5 ?l6 ?seq ?val WHERE{"+
+			"  ?act chembl:type ?type;"+ 
+			"    chembl:onAssay ?ass;"+
+			"    chembl:forMolecule ?mol;"+
+			"    chembl:standardValue ?val."+
+			"  ?mol bo:smiles ?smiles."+
+			"  ?target a <http://rdf.farmbio.uu.se/chembl/onto/#Target> ;" +
+			"    chembl:classL3 ?l3;" +  //+ " \"" + classL3 + "\" ;" +
+			"    chembl:classL4 ?l4;" +
+			"    chembl:classL5 ?l5;" +
+			"    chembl:classL6 ?l6;" +
+			"    chembl:sequence ?seq." +
+			"  FILTER regex(?l3, " + "\"" + classL3 + "\" , \"i\")." +
+			"  ?ass chembl:hasTarget ?target;"+
+			"    chembl:extractedFrom ?journal."+
+			"  ?ass chembl:hasTargetCount 1 ."+
+			"  ?journal <http://purl.org/ontology/bibo/pmid> ?pubmed." +
+			"  FILTER regex(?l6, " + "\"^" + classL6 + "$\" , \"i\")." +
+			"  FILTER regex(?type,  \"^" + actType + "$\", \"i\" )"+
+			"}"
+			;
+	
+		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
+		cutter(matrix);
+		return matrix;
+	}
+
+	// Returns properties like title of target, type of target and organism.
+	public IStringMatrix getProperties(Integer targetID)
+	throws BioclipseException {
+		String sparql =
+			"PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> " +
+			"PREFIX dc: <http://purl.org/dc/elements/1.1/> " +
+			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#> " +
+			"SELECT DISTINCT ?title ?type ?organism " +
+			"WHERE { " +
+			"  <http://rdf.farmbio.uu.se/chembl/target/t" + targetID + "> " +
+			"  dc:title ?title ;" +
+			"  chembl:hasTargetType ?type ;" +
+			" chembl:organism ?organism ." +
+			"}";
+	
+		return rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
 	}
 
 	public IStringMatrix getProteinData(Integer targetID) throws BioclipseException{
@@ -164,6 +332,41 @@ public class ChEMBLManager implements IBioclipseManager {
 		cutter(matrix);
 		return matrix;
 	}
+	public Map<String, Double> getQSARData(Integer targetID, String activity)
+	throws BioclipseException {
+		Map<String, Double> results = new HashMap<String, Double>();
+	
+		String sparql =
+			"PREFIX bo: <http://www.blueobelisk.org/chemistryblogs/> "+
+			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#> " +
+			"SELECT DISTINCT ?smiles ?val " +
+			"WHERE { " +
+			"  ?act chembl:type \"" + activity + "\"; " +
+			"  chembl:onAssay ?ass; " +
+			"  chembl:standardValue ?val; " +
+			"  chembl:forMolecule ?mol. " +
+			" ?mol bo:smiles ?smiles. " +
+			" ?ass chembl:hasTarget " + 
+			"<http://rdf.farmbio.uu.se/chembl/target/t" + targetID + ">. " +
+			"}";
+	
+		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
+		for (int i=0; i<matrix.getRowCount(); i++) {
+			try {
+				String smiles = matrix.get(i, "smiles");
+				if (smiles != null && smiles.length() != 0) {
+					Double value = Double.valueOf(matrix.get(i, "val"));
+					if (value != Double.NaN)
+						results.put(matrix.get(i, "smiles"), value);
+				}
+			} catch (NumberFormatException exception) {
+				results.put(matrix.get(i, "smiles"), Double.NaN);
+			}
+		}
+	
+		return results;
+	}
+
 	public IStringMatrix getQSARData2(Integer targetID, String activity)
 	throws BioclipseException {
 
@@ -190,28 +393,10 @@ public class ChEMBLManager implements IBioclipseManager {
 		return matrix;
 	}
 
-	public List<String> getTargetIDWithProteinSeq(String proteinSeq)
+	public IStringMatrix getTargetIDWithEC(String ecNumber)
 	throws BioclipseException{
 		List<String> id = new ArrayList<String>();
-
-		String sparql=
-			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#> " +
-			"SELECT DISTINCT ?target WHERE {" +
-			" ?target a chembl:Target;" +
-			"         chembl:sequence "+ "\""+  proteinSeq +"\""+ " ." +
-			"}";
-
-		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
-		if(matrix.getColumn("target") != null){
-			id = matrix.getColumn("target");
-		}
-		return id;
-
-	}
-	public List<String> getTargetIDWithEC(String ecNumber)
-	throws BioclipseException{
-		List<String> id = new ArrayList<String>();
-
+	
 		String sparql=
 			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#> " +
 			"PREFIX dc: <http://purl.org/dc/elements/1.1/>"+
@@ -219,15 +404,16 @@ public class ChEMBLManager implements IBioclipseManager {
 			" ?target a chembl:Target;" +
 			"         dc:identifier "+ "\""+  ecNumber +"\""+ " ." +
 			"}";
-
+	
 		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
-		if(matrix.getColumn("target") != null){
-			id = matrix.getColumn("target");
-		}
-
-		return id;
-
+//		if(matrix.getColumn("target") != null){
+//			id = matrix.getColumn("target");
+//		}
+	
+		return matrix;
+	
 	}
+
 	public IStringMatrix getTargetIDWithKeyword(String keyword)
 	throws BioclipseException{
 		String sparql=
@@ -246,6 +432,24 @@ public class ChEMBLManager implements IBioclipseManager {
 		return matrix;
 	}
 
+	public List<String> getTargetIDWithProteinSeq(String proteinSeq)
+	throws BioclipseException{
+		List<String> id = new ArrayList<String>();
+
+		String sparql=
+			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#> " +
+			"SELECT DISTINCT ?target WHERE {" +
+			" ?target a chembl:Target;" +
+			"         chembl:sequence "+ "\""+  proteinSeq +"\""+ " ." +
+			"}";
+
+		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
+		if(matrix.getColumn("target") != null){
+			id = matrix.getColumn("target");
+		}
+		return id;
+
+	}
 	public List<String> getTargetSequence(Integer targetID)
 	throws BioclipseException {
 		List<String> countActivities = new ArrayList<String>();
@@ -264,178 +468,6 @@ public class ChEMBLManager implements IBioclipseManager {
 		return countActivities;
 	}
 
-
-	public IStringMatrix getPCM(String actType, String classL6, String classL3)
-	throws BioclipseException{
-
-		String sparql =
-			"PREFIX bo: <http://www.blueobelisk.org/chemistryblogs/> "+
-			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#>"+
-			" SELECT DISTINCT ?target ?pubmed ?smiles ?l3 ?l4 ?l5 ?l6 ?seq ?val WHERE{"+
-			"  ?act chembl:type ?type;"+ 
-			"    chembl:onAssay ?ass;"+
-			"    chembl:forMolecule ?mol;"+
-			"    chembl:standardValue ?val."+
-			"  ?mol bo:smiles ?smiles."+
-			"  ?target a <http://rdf.farmbio.uu.se/chembl/onto/#Target> ;" +
-			"    chembl:classL3 ?l3;" +  //+ " \"" + classL3 + "\" ;" +
-			"    chembl:classL4 ?l4;" +
-			"    chembl:classL5 ?l5;" +
-			"    chembl:classL6 ?l6;" +
-			"    chembl:sequence ?seq." +
-			"  FILTER regex(?l3, " + "\"" + classL3 + "\" , \"i\")." +
-			"  ?ass chembl:hasTarget ?target;"+
-			"    chembl:extractedFrom ?journal."+
-			"  ?ass chembl:hasTargetCount 1 ."+
-			"  ?journal <http://purl.org/ontology/bibo/pmid> ?pubmed." +
-			"  FILTER regex(?l6, " + "\"^" + classL6 + "$\" , \"i\")." +
-			"  FILTER regex(?type,  \"^" + actType + "$\", \"i\" )"+
-			"}"
-			;
-
-		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
-		cutter(matrix);
-		return matrix;
-	}
-
-	public String getChebiId(Integer molID)
-	throws BioclipseException{
-		String sparql=
-			"PREFIX owl: <http://www.w3.org/2002/07/owl#>"+
-			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#>"+
-			"SELECT DISTINCT ?chebi WHERE{"+
-			"<http://rdf.farmbio.uu.se/chembl/molecule/m"+ molID +"> owl:sameAs ?chebi."+
-			"FILTER regex(?chebi ,\"chebi\") }";
-
-
-		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
-		String chebi = matrix.getColumn("chebi").get(0).substring(25);
-		return chebi;
-	}
-
-	public List<String> getChebiId(String molIDs)
-	throws BioclipseException{
-
-		String[] molID = molIDs.split(",");
-		List<String> chebis = new ArrayList<String>();
-
-		for(int i=0; i < molID.length; i++){
-			String sparql=
-				"PREFIX owl: <http://www.w3.org/2002/07/owl#>"+
-				"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#>"+
-				"SELECT DISTINCT ?chebi WHERE{"+
-				"<http://rdf.farmbio.uu.se/chembl/molecule/m"+ molID[i] +"> owl:sameAs ?chebi."+
-				"FILTER regex(?chebi ,\"chebi\") }";
-			IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
-			String chebi = matrix.getColumn("chebi").get(0).substring(25);
-			chebis.add(chebi);
-		} 
-		return chebis;
-	}
-
-
-	public IStringMatrix getCompoundInfo(Integer chebiID)
-	throws BioclipseException, IOException{
-
-		String sparql=
-			"PREFIX dc: <http://purl.org/dc/elements/1.1/>"+    
-			"PREFIX bo: <http://www.blueobelisk.org/chemistryblogs/> "+
-			"PREFIX owl: <http://www.w3.org/2002/07/owl#>"+
-			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#>"+
-			"  SELECT DISTINCT ?act ?asstype ?type ?score ?target ?title WHERE{"+
-			"    ?act chembl:forMolecule <http://rdf.farmbio.uu.se/chembl/molecule/m" + chebiID + "> ." +
-			"    <http://rdf.farmbio.uu.se/chembl/molecule/m" + chebiID + "> bo:smiles ?SMILES." +
-			"    ?act chembl:type ?type;" +
-			"        chembl:onAssay ?ass." +
-			"    ?ass chembl:hasAssayType ?asstype;" +
-			"          chembl:hasTarget ?target;" +
-			"          chembl:hasConfScore ?score." +
-			"    ?target dc:title ?title." +
-			"}";
-
-		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
-		cutter(matrix);
-
-		return matrix;
-	}
-
-
-	public List<IStringMatrix> getCompoundInfo(String chebiIDs)
-	throws BioclipseException, IOException{
-
-		List<IStringMatrix> matrices = new ArrayList<IStringMatrix>();
-		String[] chebiID = chebiIDs.split(",");
-		for(int i = 0; i<chebiID.length; i++){
-			String sparql=
-
-				"PREFIX dc: <http://purl.org/dc/elements/1.1/>"+    
-				"PREFIX bo: <http://www.blueobelisk.org/chemistryblogs/> "+
-				"PREFIX owl: <http://www.w3.org/2002/07/owl#>"+
-				"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#>"+
-
-				"SELECT DISTINCT ?act ?asstype ?type ?score ?target ?title WHERE{"+
-				"  ?act chembl:forMolecule <http://rdf.farmbio.uu.se/chembl/molecule/m" + chebiID[i] + "> ." +
-				"  <http://rdf.farmbio.uu.se/chembl/molecule/m" + chebiID[i] + "> bo:smiles ?SMILES." +
-				"  ?act chembl:type ?type;" +
-				"      chembl:onAssay ?ass." +
-				"  ?ass chembl:hasAssayType ?asstype;" +
-				"        chembl:hasTarget ?target;" +
-				"        chembl:hasConfScore ?score." +
-				"  ?target dc:title ?title." +
-				"}";
-
-			IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
-			cutter(matrix);
-			matrices.add(matrix);
-		}
-		return matrices;
-	}
-	public IStringMatrix getCompoundInfoWithKeyword(String keyword)
-	throws BioclipseException{
-
-		String sparql=
-			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#> " +
-			"PREFIX dc: <http://purl.org/dc/elements/1.1/>"+
-			"SELECT DISTINCT ?target ?description  WHERE {" +
-			"  ?target a chembl:Target." +
-			"  ?target chembl:hasDescription ?description ." +
-			"   FILTER regex(?description , " + "\"" + keyword + "\" , \"i\") ." +
-			"}";
-
-		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
-		cutter(matrix);
-		return matrix;
-	}
-	public IStringMatrix getCompoundInfoWithSmiles(String smiles)
-	throws BioclipseException{
-		smiles = smiles.replaceAll("\\(","\\\\\\\\(");
-		smiles =smiles.replaceAll("\\)","\\\\\\\\)");
-		smiles =smiles.replaceAll("\\[","\\\\\\\\[");
-		smiles =smiles.replaceAll("\\]","\\\\\\\\]");
-		smiles =smiles.replaceAll("\\+","\\\\\\\\+");
-		smiles =smiles.replaceAll("\\.","\\\\\\\\.");
-		smiles =smiles.replaceAll("\\*","\\\\\\\\*");
-		smiles =smiles.replaceAll("\\/","\\\\\\\\/");
-		//		smiles =smiles.replaceAll("\\\\","\\\\\\\\\\");
-
-		String sparql =
-			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#> " +
-			"PREFIX dc: <http://purl.org/dc/elements/1.1/>"+
-			"PREFIX bo: <http://www.blueobelisk.org/chemistryblogs/> "+
-			"PREFIX owl: <http://www.w3.org/2002/07/owl#>" +
-			"PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>"+
-			" SELECT ?chebi ?title WHERE {" +
-			"    ?mol a chembl:Compound ." +
-			"    ?mol bo:smiles ?smiles ."+
-			"    ?mol owl:sameAs ?chebi ." +
-			" FILTER regex(?smiles, \"^"+ smiles + "$\") ."+
-			" FILTER regex(?chebi , \"chebi\") ." +
-			" OPTIONAL {?mol dc:title ?title} ."+
-			"}";
-		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
-		cutter(matrix);
-		return matrix;
-	}
 
 	public void saveCSV(IFile filename, IStringMatrix fam, IProgressMonitor monitor)
 	throws BioclipseException, IOException {
@@ -484,18 +516,61 @@ public class ChEMBLManager implements IBioclipseManager {
 		monitor.worked(100);
 		monitor.done();
 	}
-
-	public void saveMossFormat(IFile filename, IStringMatrix matrix, IProgressMonitor monitor)
+	public void saveCSV(IFile filename, ArrayList<TableItem> lst, IProgressMonitor monitor)
 	throws BioclipseException, IOException {
-		
+		String s;
+		if (filename.exists()) {
+			throw new BioclipseException("File already exists!");
+		}
+		if (monitor == null)
+			monitor = new NullProgressMonitor();
+		monitor.beginTask("Writing file", 100);
+		try {
+			ByteArrayOutputStream output = new ByteArrayOutputStream();
+			
+//			for(int i = 0; i<lst.size(); i++){
+				s=
+				lst.get(0)+"";//.getText()+",";
+//				lst.get(i).getText(i+1)+",";
+//				lst.get(i).getText(i+2)+","+
+//				lst.get(i).getText(i+3)+","+
+//				lst.get(i).getText(i+4)+"/n";
+			
+				byte but[]= s.getBytes();
+				output.write(but);
+//				}
+			output.close();
+			filename.create(
+					new ByteArrayInputStream(output.toByteArray()),
+					false,
+					monitor
+			);
+		}
+		catch (Exception e) {
+			monitor.worked(100);
+			monitor.done();
+			throw new BioclipseException("Error while writing file.", e);
+		}
+
+		monitor.worked(100);
+		monitor.done();
+	}
+	
+	/* MoSS Section
+	* Methods that involve MoSS interaction.
+	*/
+
+	public void MossSaveFormat(IFile filename, IStringMatrix matrix, IProgressMonitor monitor)
+	throws BioclipseException, IOException {
+
 		String s; 
 		//IFile filename =ResourcePathTransformer.getInstance().transform(file);
 		ArrayList<String> fam = new ArrayList<String>();
-		
+
 		for(int i=1; i<matrix.getRowCount()+1; i++){
-			fam.add(matrix.get(i,1));
+			fam.add(matrix.get(i,"smiles"));
 		}
-		
+
 		if (filename.exists()) {
 			throw new BioclipseException("File already exists!");
 		}
@@ -526,25 +601,23 @@ public class ChEMBLManager implements IBioclipseManager {
 
 		monitor.worked(100);
 		monitor.done();
-			}
-	
-	public void saveMossFormat(IFile filename, IStringMatrix matrix,IStringMatrix matrix2, IProgressMonitor monitor)
+	}
+	public void MossSaveFormat(IFile filename, IStringMatrix matrix,IStringMatrix matrix2, IProgressMonitor monitor)
 	throws BioclipseException, IOException {
-		
+
 		String s; 
-		int cnt =0;
 		//IFile filename =ResourcePathTransformer.getInstance().transform(file);
 		ArrayList<String> fam = new ArrayList<String>();
 		ArrayList<String> fam2 = new ArrayList<String>();
-		
+
 		//Add compounds from matrix to lists
 		for(int i=1; i<matrix.getRowCount()+1; i++){
-			fam.add(matrix.get(i,1));
+			fam.add(matrix.get(i,"smiles"));
 		}
 		for(int i=1; i<matrix2.getRowCount()+1; i++){
-			fam2.add(matrix2.get(i,1));
+			fam2.add(matrix2.get(i,"smiles"));
 		}
-		
+
 		if (filename.exists()) {
 			throw new BioclipseException("File already exists!");
 		}
@@ -556,16 +629,15 @@ public class ChEMBLManager implements IBioclipseManager {
 			ByteArrayOutputStream output = new ByteArrayOutputStream();
 
 			for(int i = 0; i<fam.size(); i++){
-				s = "A"+i+1 +",0," + fam.get(i) + "\n";	
+				s = "A"+(i+1) +",0," + fam.get(i) + "\n";	
 				byte but[]= s.getBytes();
 				output.write(but); 
-				cnt = i+1;
+
 			}
 			for(int i=0 ; i<fam2.size(); i++){
-				s = "B"+cnt+1 +",0," + fam2.get(i) + "\n";	
+				s = "B"+(i+1) +",0," + fam2.get(i) + "\n";	
 				byte but[]= s.getBytes();
-				output.write(but); 
-				cnt++;
+				output.write(but); 	
 			}
 			output.close();
 			filename.create(
@@ -582,26 +654,7 @@ public class ChEMBLManager implements IBioclipseManager {
 
 		monitor.worked(100);
 		monitor.done();
-			}
-	
-	// Returns properties like title of target, type of target and organism.
-	public IStringMatrix getProperties(Integer targetID)
-	throws BioclipseException {
-		String sparql =
-			"PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> " +
-			"PREFIX dc: <http://purl.org/dc/elements/1.1/> " +
-			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#> " +
-			"SELECT DISTINCT ?title ?type ?organism " +
-			"WHERE { " +
-			"  <http://rdf.farmbio.uu.se/chembl/target/t" + targetID + "> " +
-			"  dc:title ?title ;" +
-			"  chembl:hasTargetType ?type ;" +
-			" chembl:organism ?organism ." +
-			"}";
-
-		return rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
 	}
-
 
 	//Collects compounds from a protein family
 	public IStringMatrix MossProtFamilyCompounds(String fam, String actType, int limit) throws BioclipseException{
@@ -614,19 +667,19 @@ public class ChEMBLManager implements IBioclipseManager {
 			"       chembl:classL5 ?fam. " + //+ " \"" + fam + "\"." +
 			"	?assay chembl:hasTarget ?target ."+
 			"   ?activity chembl:onAssay ?assay ;" +
-//			"       chembl:standardValue ?st ;" +
+			//			"       chembl:standardValue ?st ;" +
 			"	    chembl:type ?actType ; " + //" \"" + actType + "\"."+ 
 			"	    chembl:forMolecule ?mol ."+
 			"	?mol bo:smiles ?smiles.  " +
 			" FILTER regex(?fam, " + "\"^" + fam + "$\"" + ", \"i\")."+
 			" FILTER regex(?actType, " + "\"^" + actType + "$\"" + ", \"i\")."+
 			" }  LIMIT " + limit; 
-	
+
 
 		IStringMatrix matrix = rdf.sparqlRemote("http://rdf.farmbio.uu.se/chembl/sparql",sparql);
 		return matrix;
 	}
-	
+
 	public IStringMatrix MossProtFamilyCompounds(String fam, String actType) 
 	throws BioclipseException{
 
@@ -648,8 +701,8 @@ public class ChEMBLManager implements IBioclipseManager {
 		IStringMatrix matrix = rdf.sparqlRemote("http://rdf.farmbio.uu.se/chembl/sparql",sparql);
 		return matrix;
 	}
-	
-	public IStringMatrix MossProtFamilyCompoundsAct(String fam, String actType) 
+
+	public IStringMatrix MossGetProtFamilyCompAct(String fam, String actType) 
 	throws BioclipseException{
 
 		String sparql =
@@ -671,8 +724,8 @@ public class ChEMBLManager implements IBioclipseManager {
 		IStringMatrix matrix = rdf.sparqlRemote("http://rdf.farmbio.uu.se/chembl/sparql",sparql);
 		return matrix;
 	}
-	
-	public IStringMatrix MossProtFamilyCompoundsAct(String fam, String actType, Integer limit) 
+
+	public IStringMatrix MossGetProtFamilyCompAct(String fam, String actType, Integer limit) 
 	throws BioclipseException{
 
 		String sparql =
@@ -694,6 +747,13 @@ public class ChEMBLManager implements IBioclipseManager {
 		IStringMatrix matrix = rdf.sparqlRemote("http://rdf.farmbio.uu.se/chembl/sparql",sparql);
 		return matrix;
 	}
+
+	public IStringMatrix MossGetProtFamilyCompActBounds(String fam, String actType, Integer lower, Integer upper) 
+	throws BioclipseException{
+		
+		return MossSetActivityBound(MossGetProtFamilyCompAct(fam, actType), lower, upper);
+	
+	}	
 
 	public List<String> MossAvailableActivities(String fam) throws BioclipseException{
 		List<String> list = new ArrayList<String>();
@@ -731,4 +791,101 @@ public class ChEMBLManager implements IBioclipseManager {
 		}
 		return list;
 	}
-}
+
+	public IStringMatrix MossSetActivityBound(IStringMatrix matrix, int lower, int upper)
+	throws BioclipseException{
+		int cnt =1;
+		StringMatrix modified = new StringMatrix();
+		modified.setColumnName(1, "actval");
+		modified.setColumnName(2, "smiles");
+
+		//test if it contains smiles and activities. Not optimal...
+		for(int i = 1; i<matrix.getColumnCount()+1; i++){
+			if(!(matrix.getColumnName(i).equals("actval")||matrix.getColumnName(i).equals("smiles"))){
+				throw new BioclipseException("The given matrix does not contain right information" +
+				"for a MoSS activity cut-off.");
+			}
+		}
+		
+		for(int i = 1; i<matrix.getColumnCount()+1; i++){
+			if(matrix.getColumnName(i).equals("actval")){
+				for(int ii = 1; ii< matrix.getRowCount()+1;ii++){
+					if( matrix.get(ii,"actval").equals("")){
+						//matrix.set(ii, "actval", String.valueOf(0));
+						if(0 >= lower && 0 <= upper){
+							modified.set(cnt, 1, matrix.get(ii, "actval"));
+							modified.set(cnt,2,matrix.get(ii,"smiles"));
+							cnt++;
+						}
+					}
+					else if(Double.parseDouble(matrix.get(ii,"actval")) >= lower && 
+							Double.parseDouble(matrix.get(ii,"actval")) <= upper){
+						modified.set(cnt, 1, matrix.get(ii, "actval"));
+						modified.set(cnt,2,matrix.get(ii,"smiles"));
+						cnt++;
+					}
+				}
+			}
+		}
+		return modified;
+	}
+	public void MoSSViewHistogram(IStringMatrix matrix){
+		
+		XYSeries series = new XYSeries("Activity for compounds");
+		HistogramDataset histogramSeries = new HistogramDataset();
+		histogramSeries.setType(HistogramType.FREQUENCY);
+		ArrayList<Double> activites = new ArrayList<Double>();
+		double value;
+	 	int cnt =1;
+		double[] histact = new double[matrix.getRowCount()+1];
+		for(int i = 1; i< matrix.getRowCount()+1;i++){
+			if(matrix.get(i,"actval").equals("")){ value =0;}
+			else{value = Double.parseDouble(matrix.get(i,"actval"));}
+			activites.add(value);
+		}
+		//Sort list to increasing order of activities and adds them to histogram
+		Collections.sort(activites);
+		for(int i=0; i< activites.size(); i++){
+			double d=activites.get(i);
+			histact[i]=d;
+			int t= activites.size()-1;
+			if(i == t){
+				series.add(d,cnt);
+			}else{
+				double dd= activites.get(i+1);
+
+				if(d==dd){
+					cnt++;
+				}
+				else{
+					histact[i]=d;
+					series.add(d,cnt);
+					cnt =1;
+				}
+			}
+		}
+		histogramSeries.addSeries("Histogram",histact,matrix.getRowCount());
+		JFreeChart jfreechart = ChartFactory.createXYLineChart("Histogram Demo", "Activity values", 
+				"Number of compounds", histogramSeries,
+				PlotOrientation.VERTICAL, true, false, false); 
+
+
+//		final XYSeriesCollection dataset = new XYSeriesCollection(series);
+//		JFreeChart chart = ChartFactory.createXYBarChart(
+//				"Activity chart",
+//				"Activity value",
+//				false,
+//				"Number of Compounds", 
+//				dataset,
+//				PlotOrientation.VERTICAL,
+//				true,
+//				true,
+//				false
+//		);
+		ChartFrame frame = new ChartFrame("Activities",jfreechart); 
+		frame.pack(); 
+		frame.setVisible(true);
+	}
+	
+
+}//End
