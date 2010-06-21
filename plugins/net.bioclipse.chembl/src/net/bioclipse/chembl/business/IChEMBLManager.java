@@ -17,7 +17,10 @@ import java.util.Map;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableItem;
+import org.jfree.chart.ChartFrame;
+import org.jfree.data.statistics.HistogramDataset;
 
 import net.bioclipse.core.PublishedClass;
 import net.bioclipse.core.PublishedMethod;
@@ -146,7 +149,7 @@ public interface IChEMBLManager extends IBioclipseManager {
 			params = "String file, StringMatrix matrix",
 			methodSummary = "Save into CSV files"
 	)
-	public void saveCSV(String file, ArrayList<TableItem> items)
+	public void saveCSV(String file, IStringMatrix matrix)
 	throws BioclipseException, IOException;
 	
 	@PublishedMethod(
@@ -155,6 +158,13 @@ public interface IChEMBLManager extends IBioclipseManager {
 	)
 	public void saveCSV(IFile filename, ArrayList<TableItem> lst)
 	throws BioclipseException, IOException;
+	
+	@PublishedMethod(
+			params = "String file, Table table",
+			methodSummary = "Save into CSV files"
+	)
+	 public void saveCSVT(String in, Table tab, IProgressMonitor monitor)
+		throws BioclipseException, IOException;
 	
 	@PublishedMethod(
 			params = "String file, StringMatrix matrix",
@@ -225,7 +235,8 @@ public interface IChEMBLManager extends IBioclipseManager {
 			methodSummary = "Only take matrices with smiles and activities. Will open a histogram for the" +
 					"activities."
 	)
-	public void MoSSViewHistogram(IStringMatrix matrix);
+	public void MoSSViewHistogram(IStringMatrix matrix)throws BioclipseException;
+
 
 }
 

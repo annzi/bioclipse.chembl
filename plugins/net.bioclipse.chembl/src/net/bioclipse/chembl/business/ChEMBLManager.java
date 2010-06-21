@@ -21,6 +21,7 @@ import java.util.Map;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableItem;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartFrame;
@@ -495,7 +496,8 @@ public class ChEMBLManager implements IBioclipseManager {
 			for(int i=1; i<fam.getRowCount()+1; i++){
 				for(int j=1; j< fam.getColumnCount()+1; j++){
 
-					if(j < fam.getColumnCount()){ s =fam.get(i, j) + ",";
+					if(j < fam.getColumnCount()){
+						s =fam.get(i, j) + ",";
 					}                    
 					else { s =fam.get(i, j) + "\n";
 					}
@@ -542,6 +544,48 @@ public class ChEMBLManager implements IBioclipseManager {
 				byte but[]= s.getBytes();
 				output.write(but);
 //				}
+			output.close();
+			filename.create(
+					new ByteArrayInputStream(output.toByteArray()),
+					false,
+					monitor
+			);
+		}
+		catch (Exception e) {
+			monitor.worked(100);
+			monitor.done();
+			throw new BioclipseException("Error while writing file.", e);
+		}
+
+		monitor.worked(100);
+		monitor.done();
+	}
+	
+	//H€T
+    public void saveCSVT(String in, Table tab, IProgressMonitor monitor)
+	throws BioclipseException, IOException {
+		
+		IFile filename = ResourcePathTransformer.getInstance().transform(in);
+		if (filename.exists()) {
+			throw new BioclipseException("File already exists!");
+		}
+		if (monitor == null)
+			monitor = new NullProgressMonitor();
+		monitor.beginTask("Writing file", 100);
+		try {
+			ByteArrayOutputStream output = new ByteArrayOutputStream();
+			TableItem[] ti = tab.getItems();			
+			for(int i =0; i< ti.length;i++){
+				String s="";
+				for(int j = 0; j < tab.getColumnCount(); j++){  
+					if(ti[i].getText(j).equals("")){
+						j = tab.getColumnCount();
+					}else s= s+ ti[i].getText(j) + ",";
+				}
+				s=s+"\n";
+				byte but[]= s.getBytes();
+				output.write(but);	
+			}
 			output.close();
 			filename.create(
 					new ByteArrayInputStream(output.toByteArray()),
@@ -832,7 +876,7 @@ public class ChEMBLManager implements IBioclipseManager {
 		}
 		return modified;
 	}
-	public void MoSSViewHistogram(IStringMatrix matrix){
+	public void MoSSViewHistogram(IStringMatrix matrix) throws BioclipseException{
 		
 		XYSeries series = new XYSeries("Activity for compounds");
 		HistogramDataset histogramSeries = new HistogramDataset();
@@ -868,27 +912,17 @@ public class ChEMBLManager implements IBioclipseManager {
 			}
 		}
 		histogramSeries.addSeries("Histogram",histact,matrix.getRowCount());
-		JFreeChart jfreechart = ChartFactory.createXYLineChart("Histogram Demo", "Activity values", 
+		JFreeChart jfreechart = ChartFactory.createXYLineChart("Histogram", "Activity values", 
 				"Number of compounds", histogramSeries,
 				PlotOrientation.VERTICAL, true, false, false); 
 
-
-//		final XYSeriesCollection dataset = new XYSeriesCollection(series);
-//		JFreeChart chart = ChartFactory.createXYBarChart(
-//				"Activity chart",
-//				"Activity value",
-//				false,
-//				"Number of Compounds", 
-//				dataset,
-//				PlotOrientation.VERTICAL,
-//				true,
-//				true,
-//				false
-//		);
 		ChartFrame frame = new ChartFrame("Activities",jfreechart); 
 		frame.pack(); 
 		frame.setVisible(true);
 	}
+
+	
+	
 	
 
 }//End
