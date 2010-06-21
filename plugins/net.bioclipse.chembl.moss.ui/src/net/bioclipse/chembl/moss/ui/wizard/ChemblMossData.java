@@ -17,5 +17,5 @@ public class ChemblMossData {
 	
 	IStringMatrix matrix;
 	IStringMatrix matrix2;
-	String m;
+	String m = "/Virtual/ChemblMossOutput";
 }

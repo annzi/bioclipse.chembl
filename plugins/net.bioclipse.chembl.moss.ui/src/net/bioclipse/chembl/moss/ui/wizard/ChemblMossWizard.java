@@ -1,3 +1,13 @@
+/* Copyright (c) 2010  Egon Willighagen <egonw@users.sf.net>
+ *               2010  Annsofie Andersson <annzi.andersson@gmail.com>
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contact: http://www.bioclipse.net/
+ */
 package net.bioclipse.chembl.moss.ui.wizard;
 
 import java.io.IOException;
@@ -16,6 +26,7 @@ public class ChemblMossWizard extends Wizard implements INewWizard {
 	private static final Logger logger = Logger.getLogger(ChemblMossWizard.class);
 	private ChemblMossWizardPage1 firstpage;
 	private ChemblMossWizardPage2 secondpage;
+	private ChemblMossWizardPage3 thirdpage;
 	private IChEMBLManager chembl;
 	ChemblMossData data = new ChemblMossData();
 
@@ -31,6 +42,9 @@ public class ChemblMossWizard extends Wizard implements INewWizard {
 
 		secondpage = new ChemblMossWizardPage2("ChEMBL MoSS page 2");
 		addPage(secondpage);
+		
+		thirdpage = new ChemblMossWizardPage3("ChEMBL MoSS page 3");
+		addPage(thirdpage);
 	}	
 
 	
@@ -50,12 +64,13 @@ public class ChemblMossWizard extends Wizard implements INewWizard {
 	@Override
 	public boolean performFinish() {
 		try {
+//			chembl.saveMossFormatFile(data.mm, data.matrix);
 			if(data.matrix != null && data.matrix2 == null)
-				chembl.saveMossFormat(data.m, data.matrix);
-			if(data.matrix != null && data.matrix2 != null){
-				chembl.saveMossFormat(data.m, data.matrix, data.matrix2);}
-			if(data.matrix == null && data.matrix2 != null)
-				chembl.saveMossFormat(data.m, data.matrix2);
+				chembl.MossSaveFormat(data.m, data.matrix);
+			else if(data.matrix != null && data.matrix2 != null){
+				chembl.MossSaveFormat(data.m, data.matrix, data.matrix2);}
+			else if(data.matrix == null && data.matrix2 != null)
+				chembl.MossSaveFormat(data.m, data.matrix2);
 
 		} catch (BioclipseException e) {
 			// TODO Auto-generated catch block
