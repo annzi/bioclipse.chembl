@@ -1,3 +1,5 @@
+package net.bioclipse.chembl.ui.wizard;
+
 /* Copyright (c) 2010  Egon Willighagen <egonw@users.sf.net>
  *               2010  Annsofie Andersson <annzi.andersson@gmail.com>
  *
@@ -8,9 +10,14 @@
  *
  * Contact: http://www.bioclipse.net/
  */
-package net.bioclipse.chembl.ui.wizard;
+
+
+import org.eclipse.swt.widgets.Table;
 
 public class ChemblData {
 
+  Table tab;
+  String file = "/Virtual/test";
 
 }
+
