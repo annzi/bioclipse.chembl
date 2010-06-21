@@ -369,15 +369,25 @@ public class ChemblMossWizardPage1 extends WizardPage implements IRunnableContex
 				//				}
 			}
 		});	
+		
+		
+		label = new Label(container, SWT.NONE);
+		label.setText("Optional: Modify activity values.");
+		Font font1 = new Font(container.getDisplay(), "Helvetica", 13, SWT.NONE);
+        label.setFont(font1);
+		gridData = new GridData();
+		gridData.horizontalSpan=4;
+		gridData.verticalSpan=5;
+		label.setLayoutData(gridData);
+		
 		check = new Button(container, SWT.CHECK);
-		check.setText("Cut-off");
+		check.setText("Modify activities");
 		check.setToolTipText("Modify data by specifying upper and lower activity limit");
 		check.setEnabled(false);
 		gridData = new GridData(GridData.BEGINNING);
-		gridData.horizontalSpan = 1;
+		gridData.horizontalSpan = 2;
 		check.setLayoutData(gridData);
 		check.addSelectionListener(new SelectionAdapter() {
-
 			public void widgetSelected(SelectionEvent e) {
 				boolean selected = check.getSelection();
 				if(selected == true){
@@ -386,6 +396,7 @@ public class ChemblMossWizardPage1 extends WizardPage implements IRunnableContex
 					buttonUpdate.setEnabled(true);
 					labelHigh.setEnabled(true);
 					labelLow.setEnabled(true);
+					buttonH.setEnabled(true);
 				}
 				else if(selected == false){
 					spinnLow.setEnabled(false);
@@ -452,18 +463,37 @@ public class ChemblMossWizardPage1 extends WizardPage implements IRunnableContex
 		gridData.widthHint=100;
 		gridData.horizontalSpan = 1;
 		spinnLow.setLayoutData(gridData);
-		spinnLow.addSelectionListener(new SelectionAdapter() {
-			public void widgetSelected(SelectionEvent e) {
-//				int selected = spinnLow.getSelection();
 
-			}});
+		buttonUpdate = new Button(container, SWT.PUSH);
+		buttonUpdate.setText("Update table");
+		buttonUpdate.setToolTipText("Update the table with the specified activity limits");
+		buttonUpdate.setEnabled(false);
+		gridData = new GridData();
+		gridData.horizontalSpan = 2;
+		buttonUpdate.setLayoutData(gridData);
+		buttonUpdate.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				table.clearAll();
+				table.removeAll();
+				try {
+					IStringMatrix matrix = chembl.MossSetActivityBound(matrixAct, spinnLow.getSelection(), spinnHigh.getSelection());
+					addToTable(matrix);
+					spinn.setSelection(matrix.getRowCount());
+					info.setText("Total compound hit: "+ matrix.getRowCount());
+				} catch (BioclipseException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+			}
+		});
+		
+		//Upper activity bound for updating table
 		labelHigh = new Label(container, SWT.NONE);
 		labelHigh.setText("Upper activity limit");
 		labelHigh.setEnabled(false);
 		gridData = new GridData();
 		gridData.horizontalSpan = 1;
 		labelHigh.setLayoutData(gridData);
-
 		spinnHigh = new Spinner(container,SWT.BORDER);
 		spinnHigh.setSelection(1000);
 		spinnHigh.setMaximum(1000000000);
@@ -472,22 +502,19 @@ public class ChemblMossWizardPage1 extends WizardPage implements IRunnableContex
 		spinnHigh.setToolTipText("Specify upper activity limit");
 		gridData = new GridData();
 		gridData.widthHint=100;
-		gridData.horizontalSpan = 1;
+		gridData.horizontalSpan = 3;
 		spinnHigh.setLayoutData(gridData);
-		spinnHigh.addSelectionListener(new SelectionAdapter() {
-			public void widgetSelected(SelectionEvent e) {
-//				int selected = spinnHigh.getSelection();
 
-			}});
-
-
+		//Label for displaying compound hits
 		info = new Label(container, SWT.NONE);
 		gridData = new GridData();
 		info.setLayoutData(gridData);
 		gridData.horizontalSpan = 4;
+		gridData.verticalSpan=6;
 		gridData.widthHint = 350;
 		info.setText("Total compound hit:" );
 
+		//Table displaying contents
 		table = new Table(container, SWT.BORDER );
 		table.setHeaderVisible(true);
 		table.setLinesVisible(true);
@@ -506,61 +533,33 @@ public class ChemblMossWizardPage1 extends WizardPage implements IRunnableContex
 		column2.setText("Activity value"); 
 		column3= new TableColumn(table, SWT.NONE);
 		column3.setText("Compounds (SMILES)"); 
+	}//end container
 
-		label = new Label(container, SWT.NONE);
-		label.setText("File directory: ");
-		gridData = new GridData(GridData.FILL);
-		gridData.grabExcessHorizontalSpace = true;
-		gridData.horizontalSpan = 4;
-		label.setLayoutData(gridData);
-
-		text = new Text(container, SWT.BORDER|SWT.FILL);
-		text.setText("MossFile");
-		gridData = new GridData(GridData.FILL_HORIZONTAL);
-		gridData.horizontalSpan = 2;
-		text.setLayoutData(gridData);
-
-		text.addModifyListener(new ModifyListener() {
-			public void modifyText(ModifyEvent e) {
-				if (e.getSource() instanceof Text) {
-					Text txt = (Text) e.getSource();
-					((ChemblMossWizard) getWizard()).data.m  = txt.getText();
-				}
+	// General method for adding items(i.e. compounds) to the table
+	public void addToTable(IStringMatrix matrix){
+		//Save matrix into a datamodel
+		((ChemblMossWizard) getWizard()).data.matrix = matrix; 
+	
+		//Adds a matrix to a table
+		for(int r = 1; r < matrix.getRowCount()+1; r++){	
+			TableItem item = new TableItem(table, SWT.NULL);
+			item.setText(0,String.valueOf(r));
+			for(int i = 1; i < matrix.getColumnCount()+1; i++){	
+				item.setText(i, matrix.get(r, matrix.getColumnName(i)));
 			}
-		});
-
-		buttonb = new Button(container, SWT.NONE);
-		buttonb.setText("Browse");
-		gridData = new GridData();
-		gridData.horizontalSpan = 2;
-		buttonb.setLayoutData(gridData);
-}//end container
-
-// General method for adding items(i.e. compounds) to the table
-public void addToTable(IStringMatrix matrix){
-	
-    //Adds a matrix to a table
-	for(int r = 1; r < matrix.getRowCount()+1; r++){	
-		TableItem item = new TableItem(table, SWT.NULL);
-		item.setText(0,String.valueOf(r));
-		for(int i = 1; i < matrix.getColumnCount()+1; i++){	
-			item.setText(i, matrix.get(r, matrix.getColumnName(i)));
 		}
+		column1.pack();
+		column2.pack();
+		column3.pack();
 	}
-	column1.pack();
-	column2.pack();
-	column3.pack();
-	
-	//Save matrix into a datamodel
-	((ChemblMossWizard) getWizard()).data.matrix = matrix; 
-}
-@Override
-public void run(boolean fork, boolean cancelable,
-		IRunnableWithProgress runnable) throws InvocationTargetException,
-		InterruptedException {
-	// TODO Auto-generated method stub
+		
+	@Override
+	public void run(boolean fork, boolean cancelable,
+			IRunnableWithProgress runnable) throws InvocationTargetException,
+			InterruptedException {
+		// TODO Auto-generated method stub
 
-}
+	}
 
 }
 
