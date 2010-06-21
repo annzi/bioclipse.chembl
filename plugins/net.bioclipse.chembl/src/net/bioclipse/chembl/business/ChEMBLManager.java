@@ -211,11 +211,20 @@ public class ChEMBLManager implements IBioclipseManager {
 		String sparql=
 			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#> " +
 			"PREFIX dc: <http://purl.org/dc/elements/1.1/>"+
-			"SELECT DISTINCT ?target ?description  WHERE {" +
-			"  ?target a chembl:Target." +
-			"  ?target chembl:hasDescription ?description ." +
-			"   FILTER regex(?description , " + "\"" + keyword + "\" , \"i\") ." +
-			"}";
+			"PREFIX owl: <http://www.w3.org/2002/07/owl#>"+
+			"PREFIX bo: <http://www.blueobelisk.org/chemistryblogs/>"+
+			
+			"SELECT DISTINCT ?target ?description ?chebi ?smiles WHERE {" +
+			"  ?target a chembl:Target;" +
+			"          chembl:hasDescription ?description ." +
+			"  ?assay chembl:hasTarget ?target." +
+			"  ?act chembl:onAssay ?assay;" +
+			"       chembl:forMolecule ?mol." +
+			"  ?mol bo:smiles ?smiles;" +
+			"       owl:sameAs ?chebi." +
+			"  FILTER regex(?chebi, \"chebi\" )."+
+			"  FILTER regex(?description , " + "\"" + keyword + "\" , \"i\") ." +
+			"} LIMIT 1000";
 	
 		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
 		cutter(matrix);
@@ -311,12 +320,14 @@ public class ChEMBLManager implements IBioclipseManager {
 			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#> " +
 			"PREFIX owl: <http://www.w3.org/2002/07/owl#>" +
 
-			"SELECT DISTINCT ?acttype ?organism ?description ?l3 ?l4 ?l5 ?l6 ?uniprot ?ec WHERE { " +
+			"SELECT DISTINCT ?acttype ?chebi ?organism ?description ?l3 ?l4 ?l5 ?l6 ?uniprot ?ec WHERE { " +
 			"<http://rdf.farmbio.uu.se/chembl/target/t" +targetID +">" +
-			"chembl:organism ?organism;" +
-			"chembl:hasDescription ?description." +
+			"		chembl:organism ?organism;" +
+			"		chembl:hasDescription ?description." +
 			"?activ chembl:type ?acttype;" + 
-			"       chembl:onAssay ?ass. " +
+			"       chembl:onAssay ?ass; " +
+			"		chembl:forMolecule ?mol."+
+			"?mol owl:sameAs ?chebi. " +
 			"?ass chembl:hasTarget  <http://rdf.farmbio.uu.se/chembl/target/t" +targetID +">. " +
 			"	OPTIONAL {<http://rdf.farmbio.uu.se/chembl/target/t" +targetID +"> chembl:classL3 ?l3.}."+
 			"	OPTIONAL{<http://rdf.farmbio.uu.se/chembl/target/t" +targetID +">chembl:classL4 ?l4.}."+
@@ -326,6 +337,7 @@ public class ChEMBLManager implements IBioclipseManager {
 			"		FILTER regex(?uniprot, \"uniprot\")}."+
 			"	OPTIONAL{<http://rdf.farmbio.uu.se/chembl/target/t" +targetID +">  owl:sameAs ?ec." +
 			"		FILTER regex(?ec, \"ec\")}."+
+			"		FILTER regex (?chebi, \"chebi\")."+
 			"}";
 
 		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
@@ -395,23 +407,17 @@ public class ChEMBLManager implements IBioclipseManager {
 
 	public IStringMatrix getTargetIDWithEC(String ecNumber)
 	throws BioclipseException{
-		List<String> id = new ArrayList<String>();
-	
 		String sparql=
 			"PREFIX chembl: <http://rdf.farmbio.uu.se/chembl/onto/#> " +
 			"PREFIX dc: <http://purl.org/dc/elements/1.1/>"+
-			"SELECT DISTINCT ?target WHERE {" +
+			"SELECT DISTINCT ?target ?description WHERE {" +
 			" ?target a chembl:Target;" +
-			"         dc:identifier "+ "\""+  ecNumber +"\""+ " ." +
+			"         dc:identifier "+ "\""+  ecNumber +"\""+ " ;" +
+			"		  chembl:hasDescription ?description."+
 			"}";
-	
 		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
-//		if(matrix.getColumn("target") != null){
-//			id = matrix.getColumn("target");
-//		}
-	
+		cutter(matrix);
 		return matrix;
-	
 	}
 
 	public IStringMatrix getTargetIDWithKeyword(String keyword)
@@ -422,10 +428,7 @@ public class ChEMBLManager implements IBioclipseManager {
 			"SELECT DISTINCT ?target ?key  WHERE {" +
 			" ?target a chembl:Target." +
 			"  ?target chembl:hasDescription ?key ." +
-			"   FILTER regex(?key , " + "\"" + keyword + "\" , \"i\") ." +
-			//	            " UNION " +
-			//	            "  { ?target chembl:hasKeyWord ?k ."+
-			//	            "    FILTER regex(?k , " + "\"" + keyWord + "\" , \"i\") .}" +
+			"   FILTER regex(?key , " + "\"(" + keyword + ")\" , \"i\") ." +
 			"}";
 		IStringMatrix matrix = rdf.sparqlRemote(CHEMBL_SPARQL_ENDPOINT, sparql);
 		cutter(matrix);
