@@ -1,7 +1,18 @@
+/* Copyright (c) 2010  Egon Willighagen <egonw@users.sf.net>
+ *               2010  Annsofie Andersson <annzi.andersson@gmail.com>
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contact: http://www.bioclipse.net/
+ */
 package net.bioclipse.chembl.moss.ui.wizard;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import net.bioclipse.chembl.Activator;
 import net.bioclipse.chembl.business.IChEMBLManager;
@@ -21,6 +32,7 @@ import org.eclipse.swt.events.ModifyEvent;
 import org.eclipse.swt.events.ModifyListener;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Font;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.GridData;
@@ -45,6 +57,7 @@ import org.jfree.data.category.CategoryDataset;
 import org.jfree.data.category.DefaultCategoryDataset;
 import org.jfree.data.general.DefaultPieDataset;
 import org.jfree.data.statistics.HistogramDataset;
+import org.jfree.data.statistics.HistogramType;
 import org.jfree.data.xy.IntervalXYDataset;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
@@ -58,16 +71,16 @@ public class ChemblMossWizardPage1 extends WizardPage implements IRunnableContex
 	private Table table;
 	private TableColumn column1, column2, column3;
 	private Spinner spinn, spinnLow, spinnHigh;
-	private Button button, buttonb, check, buttonH, buttonUpdate;
-	private Text text;
+	private Button button, check, buttonH, buttonUpdate;
 	XYSeries series;
+	HistogramDataset histogramSeries;
 	public static final String PAGE_NAME = "one";
 	IStringMatrix matrixAct;
 	private String index;
+
 	public ChemblMossWizardPage1(String pagename){
 		super(pagename);
 		chembl = Activator.getDefault().getJavaChEMBLManager();
-
 	}	
 	public void performHelp() {
 		PlatformUI.getWorkbench().getHelpSystem().displayHelp();		
@@ -125,14 +138,10 @@ public class ChemblMossWizardPage1 extends WizardPage implements IRunnableContex
 							item[i]= list.get(i);
 						}		
 						if(cboxAct.isEnabled()){
-
 							if(cboxAct.getSelection().x == cboxAct.getSelection().y){
 								cboxAct.setItems(item);
 							}else{
-
-								/*EMERGENCY SOLUTION.. To solve the problem
-									that involves changing the protein family...
-								 */								
+								//Solves the problem involving changing the protein family...
 								//Brings the current activities to an array
 								String oldItems[] = cboxAct.getItems();
 								// Takes that array and makes it a list
@@ -157,7 +166,7 @@ public class ChemblMossWizardPage1 extends WizardPage implements IRunnableContex
 									spinn.setSelection(50);
 									IStringMatrix matrix, matrix2;
 									try {
-										matrix = chembl.MossProtFamilyCompoundsAct(selected, index, spinn.getSelection());
+										matrix = chembl.MossGetProtFamilyCompAct(selected, index, spinn.getSelection());
 										matrix2 = chembl.MossProtFamilyCompounds(selected,index);
 										cboxAct.setText(index);
 										info.setText("Distinct compunds: "+ matrix2.getRowCount());
@@ -166,24 +175,24 @@ public class ChemblMossWizardPage1 extends WizardPage implements IRunnableContex
 										// TODO Auto-generated catch block
 										e1.printStackTrace();
 									}
-							
-							}else{
-								setErrorMessage("The activity " + index +" does not exist for the protein family " + selected + ".");
-								info.setText("Total compund hit:");
-								setPageComplete(false);
-								
+
+								}else{
+									setErrorMessage("The activity " + index +" does not exist for the protein family " + selected + ".");
+									info.setText("Total compund hit:");
+									setPageComplete(false);
+
+								}
 							}
-						}
-					}else{
-						cboxAct.setItems(item);
-						cboxAct.setEnabled(true);
-					}	
+						}else{
+							cboxAct.setItems(item);
+							cboxAct.setEnabled(true);
+						}	
+					}
+				}catch (BioclipseException e1) {
+					e1.printStackTrace();
 				}
-			}catch (BioclipseException e1) {
-				e1.printStackTrace();
 			}
-		}
-	});
+		});
 
 		/*Returns the available compunds for the family*/
 		label = new Label(container, SWT.NONE);
@@ -217,31 +226,60 @@ public class ChemblMossWizardPage1 extends WizardPage implements IRunnableContex
 					spinnHigh.setEnabled(false);
 					spinnLow.setSelection(0);
 					spinnHigh.setSelection(1000);
-					
-					//IStringMatrix matrix = chembl.MossProtFamilyCompounds(cbox.getItem(cbox.getSelectionIndex()), selected,50);
-					//IStringMatrix matrix = chembl.MossProtFamilyCompounds(cbox.getItem(cbox.getSelectionIndex()), selected, spinn.getSelection());
 
-					IStringMatrix matrix = chembl.MossProtFamilyCompoundsAct(cbox.getItem(cbox.getSelectionIndex()), selected,spinn.getSelection());
+
+					//SPARQL queries for fetching compounds and activities
+					IStringMatrix matrix = chembl.MossGetProtFamilyCompAct(cbox.getItem(cbox.getSelectionIndex()), selected,spinn.getSelection());
 					addToTable(matrix);
 					//Count the amount of compounds there is for one hit, i.e. same query without limit.
 					IStringMatrix matrix2 = chembl.MossProtFamilyCompounds(cbox.getItem(cbox.getSelectionIndex()),cboxAct.getItem(cboxAct.getSelectionIndex()));
 					info.setText("Distinct compounds: "+ matrix2.getRowCount());
-
 					//Query for activities. Adds them to the plot series.
-					matrixAct = chembl.MossProtFamilyCompoundsAct(cbox.getItem(cbox.getSelectionIndex()), selected);
+					matrixAct = chembl.MossGetProtFamilyCompAct(cbox.getItem(cbox.getSelectionIndex()), selected);
+					//IStringMatrix matrix = chembl.MossProtFamilyCompounds(cbox.getItem(cbox.getSelectionIndex()), selected,50);
+					//IStringMatrix matrix = chembl.MossProtFamilyCompounds(cbox.getItem(cbox.getSelectionIndex()), selected, spinn.getSelection());
+
 
 					//Adds activity to histogram series
 					series = new XYSeries("Activity for compounds");
+					histogramSeries = new HistogramDataset();
+					histogramSeries.setType(HistogramType.FREQUENCY);
+					ArrayList<Double> activites = new ArrayList<Double>();
+					double value;
+					int cnt =1;
+					double[] histact = new double[matrixAct.getRowCount()+1];
 					for(int i = 1; i< matrixAct.getRowCount()+1;i++){
-						if( matrixAct.get(i,"actval").equals(""))series.add(0,0);	
-						else series.add( Double.parseDouble(matrixAct.get(i,"actval")), Double.parseDouble(matrixAct.get(i,"actval")));
+						if(matrixAct.get(i,"actval").equals("")){ value =0;}
+						else{value = Double.parseDouble(matrixAct.get(i,"actval"));}
+						activites.add(value);
 					}
+					//Sort list to increasing order of activities and adds them to histogram
+					Collections.sort(activites);
+					for(int i=0; i< activites.size(); i++){
+						double d=activites.get(i);
+						histact[i]=d;
+						int t= activites.size()-1;
+						if(i == t){
+							series.add(d,cnt);
+						}else{
+							double dd= activites.get(i+1);
 
+							if(d==dd){
+								cnt++;
+							}
+							else{
+								histact[i]=d;
+								series.add(d,cnt);
+								cnt =1;
+							}
+						}
+					}
+					histogramSeries.addSeries("Histogram",histact,matrixAct.getRowCount());
 					button.setEnabled(true);
 					spinn.setEnabled(true);
 					check.setEnabled(true);
 					//cboxAct.setEnabled(true);
-					buttonH.setEnabled(true);
+					//buttonH.setEnabled(true);
 
 				}catch(BioclipseException e1){
 					e1.printStackTrace();
@@ -284,7 +322,7 @@ public class ChemblMossWizardPage1 extends WizardPage implements IRunnableContex
 		//Button that adds all hits to the limit
 		button = new Button(container, SWT.PUSH);
 		button.setToolTipText("Add all compounds to the table");
-		button.setText("Add all");
+		button.setText("Display all");
 		button.setEnabled(false);
 		button.setLayoutData(gridData);
 		gridData = new GridData();
@@ -293,37 +331,37 @@ public class ChemblMossWizardPage1 extends WizardPage implements IRunnableContex
 			public void widgetSelected(SelectionEvent e) {
 				//try {
 				table.removeAll();
-//				ProgressMonitorDialog dialog = new ProgressMonitorDialog(container.getShell());
-//				
-//				try {
-//					dialog.run(true, true, new IRunnableWithProgress(){
-//						public void run(IProgressMonitor monitor) {
-//							monitor.beginTask("Searching for compounds", IProgressMonitor.UNKNOWN);
-							try {
-								IStringMatrix matrix = chembl.MossProtFamilyCompoundsAct(cbox.getItem(cbox.getSelectionIndex()), cboxAct.getItem(cboxAct.getSelectionIndex()));
-								
-//								final IStringMatrix matrix = chembl.MossProtFamilyCompoundsAct("TK", "Ki");
-								addToTable(matrix);
-								info.setText("Total hit(not always distinct compounds): " + matrix.getRowCount());
-								spinn.setSelection(matrix.getRowCount());
-								
-							} catch (BioclipseException eb) {
-								// TODO Auto-generated catch block
-								eb.printStackTrace();
-							}
-							
-//							
-//							monitor.done();
-//						}
-//					});
-//				} catch (InvocationTargetException e1) {
-//					// TODO Auto-generated catch block
-//					e1.printStackTrace();
-//				} catch (InterruptedException e1) {
-//					// TODO Auto-generated catch block
-//					e1.printStackTrace();
-//				}
-				
+				//				ProgressMonitorDialog dialog = new ProgressMonitorDialog(container.getShell());
+				//				
+				//				try {
+				//					dialog.run(true, true, new IRunnableWithProgress(){
+				//						public void run(IProgressMonitor monitor) {
+				//							monitor.beginTask("Searching for compounds", IProgressMonitor.UNKNOWN);
+				try {
+					IStringMatrix matrix = chembl.MossGetProtFamilyCompAct(cbox.getItem(cbox.getSelectionIndex()), cboxAct.getItem(cboxAct.getSelectionIndex()));
+
+					//								final IStringMatrix matrix = chembl.MossProtFamilyCompoundsAct("TK", "Ki");
+					addToTable(matrix);
+					info.setText("Total hit(not always distinct compounds): " + matrix.getRowCount());
+					spinn.setSelection(matrix.getRowCount());
+
+				} catch (BioclipseException eb) {
+					// TODO Auto-generated catch block
+					eb.printStackTrace();
+				}
+
+				//							
+				//							monitor.done();
+				//						}
+				//					});
+				//				} catch (InvocationTargetException e1) {
+				//					// TODO Auto-generated catch block
+				//					e1.printStackTrace();
+				//				} catch (InterruptedException e1) {
+				//					// TODO Auto-generated catch block
+				//					e1.printStackTrace();
+				//				}
+
 
 				//				} catch (BioclipseException e1) {
 				//					// TODO Auto-generated catch block
@@ -355,131 +393,55 @@ public class ChemblMossWizardPage1 extends WizardPage implements IRunnableContex
 					buttonUpdate.setEnabled(false);	
 					labelHigh.setEnabled(false);
 					labelLow.setEnabled(false);
+					buttonH.setEnabled(false);
 				}
 			}
 		});
-		buttonUpdate = new Button(container, SWT.PUSH);
-		buttonUpdate.setText("Update table");
-		buttonUpdate.setToolTipText("Update the table with the specified activity limits");
-		buttonUpdate.setEnabled(false);
+		label = new Label(container, SWT.NONE);
+		label.setText("Look at activty span: ");
 		gridData = new GridData();
-		gridData.horizontalSpan = 1;
-		buttonUpdate.setLayoutData(gridData);
-		buttonUpdate.addSelectionListener(new SelectionAdapter() {
-			public void widgetSelected(SelectionEvent e) {
-				table.clearAll();
-				table.removeAll();
-				int cnt=0;
-
-				for(int i = 1; i< matrixAct.getRowCount()+1;i++){
-
-					if(matrixAct.get(i,"actval").contains("e")){
-
-						if(spinnHigh.getSelection() >= 1000000){
-							TableItem item= new TableItem(table, SWT.NONE);
-							item.setText(0,String.valueOf(cnt+1));
-							item.setText(2,matrixAct.get(i, "smiles"));		
-							item.setText(1,matrixAct.get(i,"actval"));
-							column1.pack();
-							column2.pack();
-							column3.pack();
-							cnt++;
-						}
-					}
-					else if( matrixAct.get(i,"actval").equals("")){
-
-						if(spinnHigh.getSelection() == 0){
-							TableItem item= new TableItem(table, SWT.NONE);
-							item.setText(0,String.valueOf(cnt+1));
-							item.setText(2,matrixAct.get(i, "smiles"));		
-							item.setText(1,matrixAct.get(i,"actval"));
-							column1.pack();
-							column2.pack();
-							column3.pack();
-							cnt++;
-						}
-					}
-					else if(Double.parseDouble(matrixAct.get(i,"actval")) >= spinnLow.getSelection() && 
-							Double.parseDouble(matrixAct.get(i,"actval")) <= spinnHigh.getSelection()){
-						//if(Double.parseDouble(matrixAct.get(i,"actval")) >= 10000 && Double.parseDouble(matrixAct.get(i,"actval")) <= 1000000){
-
-						TableItem item= new TableItem(table, SWT.NONE);
-						item.setText(0,String.valueOf(cnt+1));
-						item.setText(2,matrixAct.get(i, "smiles"));		
-						item.setText(1,matrixAct.get(i,"actval"));
-						column1.pack();
-						column2.pack();
-						column3.pack();
-						cnt++;
-					}	
-					spinn.setSelection(cnt);
-
-
-					//					if(spinnHigh.getSelection() >= 1000000 && matrixAct.get(i,"actval").contains("e") ){
-					//						System.out.print("hej1");
-					//						TableItem item= new TableItem(table, SWT.NONE);
-					//						item.setText(0,cnt+1 +" "+matrixAct.get(i, "smiles"));		
-					//						item.setText(1,matrixAct.get(i,"actval"));
-					//						column1.pack();
-					//						cnt++;
-					//					}
-					//					 if(matrixAct.get(i,"actval").contains("e")){
-					//						System.out.print(Double.parseDouble(matrixAct.get(i, "actval") + " hej2"));
-					//						}
-					//					else if(Double.parseDouble(matrixAct.get(i,"actval")) >= spinnLow.getSelection() && 
-					//							Double.parseDouble(matrixAct.get(i,"actval")) <= spinnHigh.getSelection()){
-					//						//if(Double.parseDouble(matrixAct.get(i,"actval")) >= 10000 && Double.parseDouble(matrixAct.get(i,"actval")) <= 1000000){
-					//						System.out.print("hej3");
-					//						TableItem item= new TableItem(table, SWT.NONE);
-					//						item.setText(0,cnt+1 +" "+matrixAct.get(i, "smiles"));		
-					//						item.setText(1,matrixAct.get(i,"actval"));
-					//						column1.pack();
-					//						cnt++;
-					//					}	
-
-
-
-					info.setText("Total compound hit: "+ cnt);
-				}
-			}
-		});
-		/*Limits the search
-		 * 
-		 * The users are able to limit there search or to be saved data.*/
+		gridData.horizontalSpan=1;
+		label.setLayoutData(gridData);
 		buttonH = new Button(container, SWT.PUSH);
-		buttonH.setText("Histogram");
-		buttonH.setToolTipText("Shows activity in a histogram(for all compounds)");
+		buttonH.setText("Graph");
+		buttonH.setToolTipText("Shows activity in a graph(for all compounds)");
 		buttonH.setEnabled(false);
 		gridData = new GridData();
-		gridData.horizontalSpan = 2; 
+		gridData.horizontalSpan = 1; 
 		buttonH.setLayoutData(gridData);
 		buttonH.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {		    	
-				final XYSeriesCollection dataset = new XYSeriesCollection(series);
-				JFreeChart chart = ChartFactory.createXYBarChart(
-						"Activity chart",
-						"Compounds", 
-						false,
-						"Activity value", 
-						dataset,
-						PlotOrientation.VERTICAL,
-						true,
-						true,
-						false
-				);
-				ChartFrame frame = new ChartFrame("Activities", chart); 
+
+				
+				JFreeChart jfreechart = ChartFactory.createXYLineChart("Histogram Demo", "Activity values", 
+						"Number of compounds", histogramSeries,
+						PlotOrientation.VERTICAL, true, false, false); 
+
+
+//				final XYSeriesCollection dataset = new XYSeriesCollection(series);
+//				JFreeChart chart = ChartFactory.createXYBarChart(
+//						"Activity chart",
+//						"Activity value",
+//						false,
+//						"Number of Compounds", 
+//						dataset,
+//						PlotOrientation.VERTICAL,
+//						true,
+//						true,
+//						false
+//				);
+				ChartFrame frame = new ChartFrame("Activities",jfreechart); 
 				frame.pack(); 
 				frame.setVisible(true);
 			}
 		});	
-		
+		// Lower activity bound for updating table
 		labelLow = new Label(container, SWT.NONE);
 		labelLow.setText("Lower activity limit");
 		labelLow.setEnabled(false);
 		gridData = new GridData();
 		gridData.horizontalSpan = 1;
 		labelLow.setLayoutData(gridData);
-
 		spinnLow = new Spinner(container,SWT.NONE);
 		spinnLow.setSelection(0);
 		spinnLow.setMaximum(10000000);
